@@ -1,0 +1,417 @@
+%% LyX 2.0.4 created this file.  For more info, see http://www.lyx.org/.
+%% Do not edit unless you really know what you are doing.
+\documentclass[11pt]{article}
+\usepackage[latin9]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{esint}
+\usepackage{filecontents}
+
+\newcommand{\one}{\mathbf{1}}
+
+\makeatletter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% User specified LaTeX commands.
+
+\usepackage{amsthm}
+
+\DeclareMathOperator*{\E}{\mathbb{E}}
+\let\Pr\relax
+\DeclareMathOperator*{\Pr}{\mathbb{P}}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\inprod}[1]{\left\langle #1 \right\rangle}
+\newcommand{\R}{\mathbb{R}}
+
+\newcommand{\handout}[5]{
+  \noindent
+  \begin{center}
+  \framebox{
+    \vbox{
+      \hbox to 5.78in { {\bf CS 224: Advanced Algorithms } \hfill #2 }
+      \vspace{4mm}
+      \hbox to 5.78in { {\Large \hfill #5  \hfill} }
+      \vspace{2mm}
+      \hbox to 5.78in { {\em #3 \hfill #4} }
+    }
+  }
+  \end{center}
+  \vspace*{4mm}
+}
+
+\newcommand{\lecture}[4]{\handout{#1}{#2}{#3}{Scribe: #4}{Lecture #1}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% 1-inch margins, from fullpage.sty by H.Partl, Version 2, Dec. 15, 1988.
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0pt
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6.5in
+
+\parindent 0in
+\parskip 1.5ex
+
+\makeatother
+
+\begin{document}
+\lecture{18 --- Oct. 30, 2014}{Fall 2014}{Prof.\ Jelani Nelson}{Xiaoyu
+He}
+
+
+\section{Overview}
+
+In this lecture we will describe a path-following implementation of the Interior
+Point Method to a general LP problem using Newton's method \cite{Gonzaga92}.
+In the previous lecture we described gave an introduction to interior point and
+also discussed a first-order optimization method (gradient descent).
+
+As in last lecture, our LP takes the form: Minimize $c^{T}x$ such that $Ax\geq b$. 
+
+
+\section{Recap of Gradient Descent}
+
+Gradient descent works by repeatedly approximately minimizing 
+$$f_{\lambda}(x)=\lambda c^{T}x-\sum_{i=1}^m \ln(s(x)_{i}) ,$$
+where $s(x)=Ax-b$ is the slack vector. Gradient descent is a first order
+method, meaning that we are supplied with an oracle that, given $x$
+provides us access to $f(x)$ and the gradient $\nabla f(x)$, where $f=f_{\lambda}$.
+
+
+\section{Newton's Method}
+
+For IPM we will use a {\em second order method}, which also provides oracle
+access to compute the Hessian $\nabla^{2}f(x)$ at any query point $x\in\R^n$
+(recall that this is the matrix of second partial derivatives of $f$).
+As before, want to minimize some function $f:\mathbb{R}^{n}\rightarrow\mathbb{R}$
+(which for us will eventually be $f_\lambda$),
+but now we have an oracle giving us $f,\nabla f,\nabla^{2}f$. As usual,
+we start with some initial $x_{init}\in\mathbb{R}^{n}$ and repeatedly
+apply an update rule, gradually decreasing our error. Given some iterate
+$x_0\in\R^n$, the update rule to form the next iterate $x_1$ is
+$$x_1\leftarrow x_0-(\nabla^{2}f(x_0))^{-1}\nabla f(x_0) .$$
+
+Note that this rule comes from solving for a minimum in the second-order
+Taylor approximation
+\[
+f(y)\approx f(x_{0})+\langle\nabla f(x_{0}),y-x_{0}\rangle+\frac{1}{2}\langle y-x_{0},\nabla^{2}f(x_{0})(y-x_{0})\rangle.
+\]
+
+Now we wish to understand how well this method behaves, i.e.\ how fast it
+decreases our error over iterations. The theorem below and its proof are
+from some notes Aaron Sidford wrote for himself and shared with me.
+
+\begin{theorem}\label{thm:newton}
+For $t\in[0,1]$ define 
+\[
+x_{t}=x_{0}+t(x_{1}-x_{0}),
+\]
+
+
+Suppose $\exists\varepsilon>0$ s.t. $\forall t\in[0,1]$,
+
+\begin{equation}
+(1-\varepsilon)\nabla^{2}f(x_{0})\preceq\nabla^{2}f(x_{t})\preceq(1+\varepsilon)\nabla^{2}f(x_{0}),\label{eq:1}
+\end{equation}
+
+
+where $A\preceq B$ is the Loewner order given by $B-A$ being positive
+semidefinite (PSD). Then 
+
+\[
+\|\nabla f(x_{1})\|_{(\nabla^{2}f(x_{1}))^{-1}}\leq\frac{\varepsilon}{1-\varepsilon}\|\nabla f(x_{0})\|_{(\nabla^{2}f(x_{0}))^{-1}}.
+\]
+
+
+(Definition: For a PSD $A$, we define $\|x\|_{A}:=\sqrt{x^{T}Ax}$).
+\end{theorem}
+
+
+\paragraph{Observations:}
+
+Theorem~\ref{thm:newton} gives us a bound on the rate of convergence of
+Newton's method. Given that the Hessian $\nabla^{2}f$ doesn't change
+too much along the optimization path $x_{t}$, Theorem~\ref{thm:newton}
+tells us that the $\nabla f$ decreases by a small multiplicative
+constant $\varepsilon/(1-\varepsilon)$. Of course having small gradient
+is equivalent to being close to the optimum, since $\nabla f=0\iff$
+$f$ is minimized. In fact, throughout Newton's method we measure
+proximity to the optimum by the size of the gradient vector.
+
+We can rewrite the condition of Theorem~\ref{thm:newton} as follows:
+
+\begin{eqnarray*}
+(1-\varepsilon)A\preceq B\preceq(1+\varepsilon)A & \iff & -\varepsilon A\preceq B-A\preceq\varepsilon A\\
+ & \iff & \forall x\in\mathbb{R}^{n},-\varepsilon x^{T}Ax\leq x^{T}(B-A)x\leq\varepsilon x^{T}Ax\\
+ & \iff & \forall y\in\mathbb{R}^{n}.-\varepsilon y^{T}y\leq y^{T}A^{-1/2}(B-A)A^{-1/2}y\leq\varepsilon y^{T}y\\
+ & \iff & -\varepsilon I\preceq A^{-1/2}(B-A)A^{-1/2}\preceq\varepsilon I
+\end{eqnarray*}
+
+
+For the third equivalence, we substituted $y=A^{1/2}x$. This form
+will prove more amenable to our calculations. In particular, if we
+apply these calculations to \eqref{eq:1}, we find that given the
+conditions of the theorem,
+
+\begin{equation}
+-\varepsilon I\preceq(\nabla^{2}f(x_{0}))^{-1/2}(\nabla^{2}f(x_{0})-\nabla^{2}f(x_{t}))(\nabla^{2}f(x_{0}))^{-1/2}\preceq\varepsilon I.\label{eq:2}
+\end{equation}
+
+Let us now prove the convergence theorem.
+
+\begin{proof}
+We can write (by the Fundamental Theorem of Calculus)
+\begin{eqnarray*}
+\nabla f(x_{1}) & = & \nabla f(x_{0})+\int_{0}^{1}\nabla^{2}f(x_{t})(x_{t}-x_{0})dt\\
+ & = & \int_{0}^{1}(\nabla^{2}f(x_{0})-\nabla^{2}f(x_{t}))(\nabla^{2}f(x_{0}))^{-1}\nabla f(x_{0})dt
+\end{eqnarray*}
+
+
+Now we want to bound $\|\nabla f(x_{1})\|_{(\nabla^{2}f(x_{1}))^{-1}}$,
+so plugging in the above integral, we get
+
+\[
+\|\nabla f(x_{1})\|_{(\nabla^{2}f(x_{1}))^{-1}}=\|\int_{0}^{1}(\nabla^{2}f(x_{0})-\nabla^{2}f(x_{t}))(\nabla^{2}f(x_{0}))^{-1}\nabla f(x_{0})dt\|_{(\nabla^{2}f(x_{1}))^{-1}}
+\]
+
+
+But actually the Hessians $\nabla^{2}f(x_{t})$ are uniformly bounded
+within a factor of $\varepsilon$ by $\nabla^{2}f(x_{0})$ spectrally.
+Explicitly, the condition of the Theorem tells us that $(\nabla^{2}f(x_{1}))^{-1}$
+has the same eigenvalues up to a factor of $\varepsilon$ as the same
+matrix at $x_{0}$. Thus we can replace the norm with respect to $(\nabla^2 f(x_1))^{-1}$ to that with respect
+to $(\nabla^2 f(x_0))^{-1}$, and increase the norm by at most a $1/(1-\varepsilon)$ factor.
+Bringing the norm inside the integral also only increases the right hand side. Thus
+
+\begin{eqnarray*}
+\|\nabla f(x_{1})\|_{(\nabla^{2}f(x_{1}))^{-1}} & \leq & \frac{1}{1-\varepsilon}\int_{0}^{1}\|(\nabla^{2}f(x_{0})-\nabla^{2}f(x_{t}))(\nabla^{2}f(x_{0}))^{-1}\nabla f(x_{0})\|_{(\nabla^{2}f(x_{0}))^{-1}}dt\\
+ & = & \frac{1}{1-\varepsilon}\int_{0}^{1}\|(\nabla^{2}f(x_{0}))^{-1/2}\nabla f(x_{0})\|_{((\nabla^{2}f(x_{0}))^{-1/2}(\nabla^{2}f(x_{0})-\nabla^{2}f(x_{t}))(\nabla^{2}f(x_{0}))^{-1/2})^{2}}dt
+\end{eqnarray*}
+
+
+$ $The last being a purely algebraic identity using the definition
+of the norm $\|\cdot\|_{A}$ as defined above. Call the matrix inside
+the square of the norm 
+\[
+M=((\nabla^{2}f(x_{0}))^{-1/2}(\nabla^{2}f(x_{0})-\nabla^{2}f(x_{t}))(\nabla^{2}f(x_{0}))^{-1/2}
+\]
+and notice that it is exactly of the form described at the end of
+section 2.1. Thus inequalities \eqref{eq:2} say exactly
+
+\[
+-\varepsilon I\preceq M\preceq\varepsilon I\implies0\preceq M^{2}\preceq\varepsilon^{2}I
+\]
+
+
+It is a general fact that if $0\preceq A\preceq B$ then $\|x\|_{A}\leq\|x\|_{B}$
+for all $x\in\mathbb{R}^{n}$. Thus, we can transform the last inequality
+to give
+
+\begin{eqnarray*}
+\|\nabla f(x_{1})\|_{(\nabla^{2}f(x_{1}))^{-1}} & \leq & \frac{1}{1-\varepsilon}\int_{0}^{1}\|(\nabla^{2}f(x_{0}))^{-1/2}\nabla f(x_{0})\|_{\varepsilon^{2}I}dt\\
+ & \leq & \frac{\varepsilon}{1-\varepsilon}\|(\nabla^{2}f(x_{0}))^{-1/2}\nabla f(x_{0})\|_{2}\\
+ & = & \frac{\varepsilon}{1-\varepsilon}\sqrt{(\nabla f(x_{0}))^{T}(\nabla^{2}f(x_{0}))^{-1}(\nabla f(x_{0}))}.
+\end{eqnarray*}
+The integral completely disappears because our bound was uniform in
+$t$, while the last two lines are just the definitions of the various
+norms. The result is exactly the conclusion of the theorem, so we
+are done.
+\end{proof}
+
+
+\section{Interior Point Method Via Newton's Method}
+
+Recall that we defined the objective function to be
+
+\[
+f_{\lambda}(x)=\lambda c^{T}x-\sum_{i=1}^{m}\ln(s(x)_{i}),
+\]
+and so we can calculate the gradient and Hessian explicitly, using
+the definition $s(x)=Ax-b$ of the slack vector:
+
+\begin{eqnarray*}
+\nabla f_{\lambda}(x) & = & \lambda c-A^{T}S_{x}^{-1}\one\\
+\nabla^{2}f_{\lambda}(x) & = & A^{T}S_{x}^{-2}A
+\end{eqnarray*}
+
+
+Here $\one\in\R^m$ is the all-$1$'s vector. Now, Newton's method runs as before.
+We start with some fixed $\lambda_{k}$, run Newton's method a few
+steps until we get an approximate solution for $\lambda_{k}$, then
+increment the $\lambda$ to $\lambda_{k+1}$ and iterate. To measure
+the speed of approximation, we introduce the concept of centrality.
+
+
+\subsection{Centrality}
+
+Define the centrality of $x$ for $f_{\lambda_{k}}$ as $\delta_{k}(x)=\|\nabla f_{\lambda_{k}}\|_{(\nabla^{2}f_{\lambda_{k}}(x))^{-1}}$.
+If $x$ is the actual optimum for $\lambda_{k}$ then the centrality
+is $0$ since the gradient will vanish there.
+
+Define $x$ to be finely central if $\delta_{k}(x)\leq\frac{1}{100}$,
+and coarsely central if $\delta_{k}(x)\leq\frac{1}{3}$.
+
+We will show that if $x$ is finely central for a given $k$, then
+when we increment $\lambda_{k}$ to $\lambda_{k+1}$ (but not by much), the same $x$ will be coarsely central
+for $\lambda_{k+1}$. We then run Newton's method to go from a coarsely
+central point to a finely central point. We will pick the increment
+on $\lambda$ so that any finely central point for $\lambda_{k}$
+remains coarsely central for $\lambda_{k+1}$.
+
+Note Theorem~\ref{thm:newton} is telling us exactly that if the Hessians
+aren't changing much along the optimization path, then $\delta_{k}(x_{1})\leq\varepsilon/(1-\varepsilon)\delta_{k}(x_{0})$,
+so we will need a constant number of such steps to get from a coarsely
+central point to a finely central point.
+
+
+\subsection{Centrality Implies Conditions of Newton's Method}
+
+How does the Hessian $\nabla^{2}f_{\lambda_{k}}$ change as we change
+$x$? We need it to not change too much on the line from one iterate of Newton's
+method to the next in order to apply Theorem~\ref{thm:newton}.
+Note that
+
+\[
+\nabla^{2}f_{\lambda_{k}}(x)=A^{T}S_{x}^{-2}A
+\]
+doesn't depend on $\lambda_{k}$, just the slacks $S_{x}$. Thus we
+only need to understand how the slack matrix and its eigenvalues change.
+In particular, suppose we are at some iterate $x_0$ of Newton's method and
+update to $x_1$, and we again define $x_t = x_0 + t(x_1-x_0)$ for $t\in[0,1]$ Then
+
+\begin{eqnarray*}
+(1-\varepsilon)S_{x_0}\preceq S_{x_t}\preceq(1+\varepsilon)S_{x_0} & \iff & -\varepsilon S_{x_0}\preceq S_{x_t}-S_{x_0}\preceq\varepsilon S_{x_0}\\
+ & \iff & -\varepsilon I\preceq S_{x_0}^{-1}(S_{x_t}-S_{x_0})\preceq\varepsilon I\\
+ & \iff & \|S_{x_0}^{-1}(s(x_t)-s(x_0))\|_{\infty}\leq\varepsilon
+\end{eqnarray*}
+
+
+But the $\ell_{\infty}$ norm can be bounded by the $\ell_{2}$ norm,
+
+\[
+\|S_{x_0}^{-1}(s(x_t)-s(x_0))\|_{\infty}\leq\|S_{x_0}^{-1}(s(x_t)-s(x_0))\|_{2}=\|S_{x_0}^{-1}A(x_t-x_0)\|_{2}
+\]
+
+
+by the definition of the slack vectors $s(x)=Ax-b$. Then
+
+\begin{eqnarray*}
+\|S_{x_0}^{-1}A(x_t-x_0)\|_{2} & = & t\cdot\|S_{x_0}^{-1}A(\nabla^{2}f(x_{0}))^{-1}\nabla f(x_{0})\|_{2}\\
+ & = & t\cdot\|\nabla f(x_{0})\|_{(\nabla^{2}f(x_{0}))^{-1}}\\
+ & = & t\cdot\delta_{k}(x_0)
+\end{eqnarray*}
+which is exactly the centrality of  $x_{0}$, which
+we assumed to be $\leq1/3$. Thus we can take $\varepsilon=1/3$ in Theorem~\ref{thm:newton}.
+
+\subsection{Incrementing $\lambda$}
+
+We have just shown that given a coarsely central point for $\lambda_{k}$,
+we can make it finely central in $O(1)$ Newton steps. Now, assuming
+that $\delta_{k}(\tilde{x}_{k})<1/100$, we want to find the largest
+step $\lambda_{k+1}$ such that $\tilde{x}_{k}$ is still coarsely
+central for the new $\lambda_{k+1}$, i.e. $\delta_{k+1}(\tilde{x}_{k})<1/3$.
+
+Suppose we perform a multiplicative increase $\lambda_{k+1}=(1+\alpha)\lambda_{k}$. We want to
+make $\alpha$ as large as possible while maintaining coarse centrality. If $\tilde{x}$ is finely
+central for $\lambda_k$, what can we say about the centrality for $\lambda_{k+1}$?
+
+\begin{eqnarray*}
+\delta_{k+1}(\tilde{x}) & = & \|\nabla f_{\lambda_{k+1}}(\tilde{x})\|_{(A^{T}S_{\tilde{x}}^{2}A)^{-1}}\\
+ & = & \|\lambda_{k}(1+\alpha)c-A^{T}S_{x}^{-1}\one\|_{(A^{T}S_{\tilde{x}}^{2}A)^{-1}}\\
+ & = & \|(1+\alpha)(\lambda_{k}c-A^{T}S_{x}^{-1}\one)+\alpha A^{T}S_{x}^{-1}\one\|_{(A^{T}S_{\tilde{x}}^{2}A)^{-1}}\\
+ & \leq & (1+\alpha)\delta_{k}(\tilde{x})+\alpha\|A^{T}S_{x}^{-1}\one\|_{(A^{T}S_{\tilde{x}}^{2}A)^{-1}}
+\end{eqnarray*}
+by the triangle inequality, the left side term just being the original
+centrality $\delta_{k}(\tilde{x})\leq 1/100$. To bound the other term,
+we have
+
+\[
+\|A^{T}S_{\tilde{x}}^{-1}\one\|_{(A^{T}S_{\tilde{x}}^{2}A)^{-1}}=\one^{T}S_{\tilde{x}}^{-1}A((A^{T}S_{\tilde{x}}^{2}A)^{-1})A^{T}S_{\tilde{x}}^{-1}\one
+\]
+
+
+In fact, the matrix between the two $\one$'s is an orthogonal projection
+onto the column space of $S_{\tilde{x}}^{-1}A$. It follows that the second
+error term is at most $\sqrt{\one^{T}\one}=\sqrt{m}$ in absolute value,
+which implies
+
+\[
+\delta_{k+1}(\tilde{x})\leq(1+\alpha)\frac{1}{100}+\alpha\sqrt{m}
+\]
+
+
+Choosing $\alpha=O(1/\sqrt{m})$ we are done. With $L$ defined as
+in last lecture, recall we said we will start with some $\lambda_0$
+which is initially $\exp(-C L)$ and can end when $\lambda$ is at least
+$m\exp(C L)$. Thus we need $\lambda_k = (1+\alpha)^k \lambda_0$ to be
+at least $m\exp (C L)$ which is satisfied for $k = O(\sqrt{m}(L + \log m))$,
+the number of iterations in our final IPM.
+
+
+\section{Initialization}
+
+It remains to find a coarsely or finely central initial point for
+some $\lambda_{0}$ to begin with. First, alter the original LP by
+adding a free variable $z$:
+
+Minimize $c^{T}x+Nz$ s.t. $Ax+1z\geq b$, $0\leq z\leq2^{L+1}$,
+$-2^{L+1}1\leq x\leq2^{L+1}1$.
+
+It is known that if $N\geq\exp(CL)$ then original LP bounded and
+feasible $\implies$ new LP' has optimum with $z=0$ (and this will
+give an optimum for the original LP). See \cite[Lemma 41]{LeeS13a}
+for details of the proof. Thus, to solve the original LP it suffices to solve LP'.
+
+LP' has an obvious interior point: $x'=(x,z)$ where $x=0,z=\|b\|_{\infty}$,
+but we also need it to be coarsely central for some starting $\lambda_0$
+to apply the IPM mentioned above. Set $\lambda=1$, and note
+
+\[
+\nabla f_{1}(x')=c-A^{T}S_{x'}^{-1}1 .
+\]
+Therefore $x'$ is perfectly central for the modified cost vector $c'=A^{T}S_{x}^{-1}1$.
+Now run the IPM mentioned in this lecture {\em in reverse} using this new cost $c'$,
+gradually decrementing $\lambda$ instead of incrementing it, making $\lambda$
+small enough that our solution is essentially independent of the cost
+function (i.e.\ so that we are very near the analytic center of the feasible region)
+Once we have an approximate analytic center $\tilde{x}$, this can be used as our starting
+solution for a very small $\lambda = \exp(-C L)$ with the orginal cost function $c$.
+
+\begin{filecontents}{lec18.bib}
+
+@article{Gonzaga92,
+  author    = {Clovis C. Gonzaga},
+  title     = {Path-following methods for linear programming},
+  journal   = {SIAM Review},
+  volume    = 34,
+  number    = 2,
+  pages     = {167--224},
+  year      = 1992,
+}
+
+@article{LeeS13a,
+  author    = {Yin Tat Lee and
+               Aaron Sidford},
+  title     = {Matching the Universal Barrier Without Paying the Costs : Solving
+               Linear Programs with $\tilde{{O}}(\sqrt{rank})$ Linear System Solves},
+  journal   = {CoRR},
+  year      = {2013},
+  volume    = {abs/1312.6677},
+}
+
+\end{filecontents}
+\bibliographystyle{alpha}
+\bibliography{lec18}
+
+\end{document}
