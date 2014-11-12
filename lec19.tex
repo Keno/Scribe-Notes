@@ -1,0 +1,246 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+
+\DeclareMathOperator*{\E}{\mathbb{E}}
+\let\Pr\relax
+\DeclareMathOperator*{\Pr}{\mathbb{P}}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\inprod}[1]{\left\langle #1 \right\rangle}
+\newcommand{\R}{\mathbb{R}}
+
+\newcommand{\handout}[5]{
+  \noindent
+  \begin{center}
+  \framebox{
+    \vbox{
+      \hbox to 5.78in { {\bf CS 224: Advanced Algorithms } \hfill #2 }
+      \vspace{4mm}
+      \hbox to 5.78in { {\Large \hfill #5  \hfill} }
+      \vspace{2mm}
+      \hbox to 5.78in { {\em #3 \hfill #4} }
+    }
+  }
+  \end{center}
+  \vspace*{4mm}
+}
+
+\newcommand{\lecture}[4]{\handout{#1}{#2}{#3}{Scribe: #4}{Lecture #1}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% 1-inch margins, from fullpage.sty by H.Partl, Version 2, Dec. 15, 1988.
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0pt
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6.5in
+
+\parindent 0in
+\parskip 1.5ex
+
+\begin{document}
+
+\lecture{19 --- November 4, 2014}{Fall 2014}{Prof.\ Jelani Nelson}{Calvin Deng}
+
+\section{Overview}
+Last time we finished a lot of stuff on linear programming - simplex, ellipsoid, interior point.\medskip\\
+Today, we're going to cover a little more stuff that can be applied to solving linear programs. In particular, we are covering the following:
+\begin{itemize}
+\item The Expert Advice Problem
+\item Multiplicative weights
+\end{itemize}
+\section{Expert Advice Problem}
+\subsection{Setup}
+\begin{itemize}
+\item There are $T$ days and $n$ experts.
+\item Each day, each expert will say "yes" or "no" (ex. will it rain today? will this stock go up today?)
+\item We have access to all of these expert opinions, and we have to make a decision on each day
+\item We want it so that at the end of the $T$ days, the number of mistakes we make is small.
+\end{itemize}
+\subsection{Analysis}
+If you don't define your measure of success, this is meaningless (for example, the experts might not know anything). A good way to measure success might be through competitive analysis -- be competitive with the best expert in hindsight.\medskip\\
+What are some simple algorithms to do this?
+\begin{itemize}
+\item At each day, just take a majority vote.
+\begin{itemize}
+\item This can fail horribly if there's one good expert and a bunch of idiots.
+\end{itemize}
+\item At each day, just take a majority vote, with one catch: at the end of the day, stop listening to any experts that got it wrong ("kill" them).
+\begin{itemize}
+\item Claim: If there exists an expert that never makes a mistake, then we make at most $\lceil\log n\rceil$ mistakes.
+\item Proof: Every day that we make a mistake, we ``kill" at least half of the experts. In addition, there's always at least one person who's alive (the perfect expert). Thus the number of ``killing days" is at most $\lceil\log_2 n\rceil$
+\item Unfortunately, what if everyone was wrong on the first day? Do we kill everyone?
+\end{itemize}
+\item At each day, just take a majority vote, with one catch: at the end of the day, stop listening to any experts that got it wrong (``kill" them). One more catch: if everyone is dead at some stage, then revive everyone.
+\begin{itemize}
+\item Claim: If the best expert makes at most $E$ errors, then we make at most $(E+1)\lceil\log_2 (n+1)\rceil$ errors.
+\item Proof: The number of ``revival phases" is $n+1$ (including the first phase, where we start with everyone). In each phase, we kill at least half of the experts each round, so there are at most $\lceil\log_2 (n+1)\rceil$ errors per phase.
+\item This is a logarithmic competitive ratio. We want something better! The way we're going to do better is to allow some additive error in the ratio as well (but we'll asymptotically improve on the $\lceil\log_2 n\rceil$ multiplicative factor).
+\end{itemize}
+\end{itemize}
+Some notation:
+Let 
+\begin{equation}
+M^{(t)} := \#\{\text{Our mistakes by the end of day }t\}
+\end{equation}
+and 
+\begin{equation}
+M_i^{(t)} := \#\{\text{Expert i's mistakes by the beginning of day }t\}
+\end{equation}
+We will show that we can get $M^{(T)}\le 2(1+\epsilon)\displaystyle\min_{1\le i\le t} m_i^{(T)} + \dfrac{2\ln n}{\epsilon}$ for any $\epsilon\in (0, \frac{1}{2})$.\medskip\\
+At a high level, what's a natural thing to try. Note that everything we've done so far is pretty extreme -- once you're wrong, you're dead!
+\paragraph{Idea:} Never kill an expert for being wrong, just trust them less. We can weigh people based on how accurate they've been so far.\medskip\\
+More precisely, we have a weight vector $w$. Initially, 
+\begin{equation}
+w = \overbrace{(1,\ldots,1)}^n
+\end{equation}
+At each stage, we will take a weighted majority vote where expert $i$ is weighted $w_i$. \medskip\\
+At the end of the day, for each wrong expert $i$, we're going to set $w_i \leftarrow (1-\epsilon)w_i$. Note: this doesn't explicitly reward correct experts, but it implicitly does. We can imagine increasing the correct people and leving the others the same, if we want.
+\paragraph{Claim} This algorithm gets the desired bound.
+\paragraph{Proof} Let $w^{(t)}$ be the weight vector at the beginning of day $t$. Let 
+\begin{equation}
+\Phi^{(t)} = \sum_{i=1}^n w_i^{(t)}
+\end{equation}
+In particular $\Phi^{(1)} = n$. What can we say about $\Phi(t+1)$ versus $\Phi(t)$ on days when we make a mistake? We know that at least half of the weight was wrong, so that portion decreases by a factor of $1-\epsilon$. Thus we get the inequality
+\begin{equation}
+\Phi^{(t+1)}\le \frac{1}{2}\Phi^{(t)} + \frac{1}{2}\Phi^{(t)}(1-\epsilon) = \Phi^{(t)}(1 - \epsilon / 2)
+\end{equation}
+Thus by induction, 
+\begin{align}
+\Phi^{(T+1)}\le \Phi^{(1)} \cdot (1-\epsilon/2)^{\#\text{ mistakes}} = n \cdot (1 - \epsilon/2)^{M^{(t)}}\le n\cdot e^{-\epsilon M^{(T)}/2}
+\end{align}
+However, for all $i$, 
+\begin{equation}
+\Phi^{(T+1)}\ge w_i^{(t)} = (1-\epsilon)^{m_i^{(T)}}
+\end{equation}
+These implies that
+\begin{equation}
+(1-\epsilon)^{m_i^{(T)}}\le n \cdot (1 - \epsilon/2)^{M^{(t)}}
+\end{equation}
+or, taking the log of both sides, 
+\begin{equation}
+m_i^{(T)} \ln (1-\epsilon) \le M^{(T)}\ln (1-\epsilon/2) + \ln(n)\label{eq:logeq}
+\end{equation}
+However, for $0 < x < \frac{1}{2}$, the following inequality is true:
+\begin{equation}
+-x-x^2\le \ln(1-x) \le -x
+\end{equation}
+Plugging this into \eqref{eq:logeq} gives
+\begin{equation}
+m_i^{(T)}(-\epsilon - \epsilon^2)\le m_i^{T}(1-\epsilon)\le M^{(T)}\ln (1-\epsilon/2) + \ln(n)\le  -\frac{\epsilon}{2} M^{(t)} + \ln(n)
+\end{equation}
+rearranging gives
+\begin{equation}
+M^{(T)}\le 2(1+\epsilon)\displaystyle\min_{1\le i\le t} m_i^{(T)} + \dfrac{2\ln n}{\epsilon}
+\end{equation}
+as desired.
+\section{Multiplicative Weights}
+From here on out, ``MW" will denote ``Multiplicative Weights".
+\subsection{As a generalization of the Expert Advice Model}
+At each step, we want not to be correct, but to minimize the probability that we are incorrect. (i.e. on each day, we output a probability distribution $P^{(t)}$ over the experts). We want
+\begin{equation}
+\sum_{t=1}^T m_t^{(t)} \cdot p^{(t)}
+\end{equation}
+to be small. {\bf WARNING: WE ARE REDEFINING $m_i^{(t)}$ HERE.} $m_i^{(t)}$ will now by the indicator for whether expert $i$ was wrong at time $t$, and 0 if they got it right.\medskip\\
+Also, we will assume that $m_i^(t)$ is actually in the interval $[-1,1]$, not just $\{0,1\}$.
+\subsection{The algorithm}
+We need to figure out the $p^{(t)}$ to output on day $t$. We're going to say
+\begin{equation}
+w_i^{(t+1)} = (1-\epsilon m_i^{(t)}) w_i^{(t)}
+\end{equation}
+and then $p_1^{(t)} = \frac{w_i^{(t)}}{\Phi^{(t)}_i}$ (aka the normalized weight vector so that probabilities add to 1).\medskip\\
+Note that this is the same as before, with $p_i$ equal to the weight vector in that example, and $m_i\in [0,1]$. \medskip\\
+MW has been rediscovered over and over again by people with different names and different fields (economics, Theoretical CS (algorithms), machine learning). See book/monograph by Arora, Hazan, Kale~\cite{DBLP:journals/toc/AroraHK12}. 
+\begin{theorem}
+For $\epsilon\in (0,\frac{1}{2})$, using MW, 
+\begin{equation}
+\sum_{t=1}^T m_t^{(t)} \cdot p^{(t)}\le \sum_{t=1}^N m_i^{(t)} + \epsilon \sum_t \left\lvert m_i^{(t)}\right\rvert + \frac{\ln n}{\epsilon}
+\end{equation}
+\end{theorem}
+\begin{proof}
+Recall that $\Phi^(t) = \sum_{i=1}^n w_i^{(t)}$. We want to again upper bound and lower bound $\Phi^(t)$ based on how we do and how expert $i$ does. We have
+\begin{align}
+\Phi^{(t+1)} &= \sum_{i=1}^n w_i^{(t+1)}\\
+&=\sum_{i=1}^n w_i^{(1)}(1 - \epsilon m_i^{(t+1)})\\
+&= \Phi^{(t)} - \epsilon\sum_i w_i^{(t)}\cdot m_i^{(t)}\\
+&= \Phi^{(t)} - \epsilon\Phi^{(t)}\sum_i p_i^{(t)}\cdot m_i^{(t)}\\
+&= \Phi^{(t)} (1-\epsilon m^{(t)}\cdot p^{(t)})\\
+&\le \Phi^{(t)} e^{-\epsilon m^{(t)}\cdot p^{(t)}}
+\end{align}
+By induction, this means that 
+\begin{equation}\label{eq:mw-upper}
+\Phi^{(T+1)}\le \underbrace{\Phi^{(1)}}_{=n}\cdot \exp\left\{-\epsilon \displaystyle\sum_{t=1}^T m_t^{(t)} \cdot p^{(t)}\right\}
+\end{equation}
+On the flipside, we have
+\begin{align}\label{eq:mw-lower}
+\Phi^{(T+1)} \ge w_i^{(T+1)} = \prod_{t=1}^T (1-\epsilon m_i^{(t)})\ge (1-\epsilon)^{\underset{\ge 0}\sum m_i^{(t)}} \cdot (1+\epsilon)^{\underset{< 0}\sum m_i^{(t)}}
+\end{align}
+where the last inequality follows from Bernoulli's inequality, which gives
+\begin{itemize}
+\item $(1-\epsilon)^x \le (1-\epsilon x)$ for $x\in [0,1]$
+\item $(1+\epsilon)^{-x} \le (1-\epsilon x)$ for $x\in [-1,0]$
+\end{itemize}
+(One can prove this by noticing the functions on the left hand side are convex in $x$). Thus combining \eqref{eq:mw-upper} and \eqref{eq:mw-lower} gives
+\begin{equation}
+(1-\epsilon)^{\underset{\ge 0}\sum m_i^{(t)}} \cdot (1+\epsilon)^{\underset{< 0}\sum m_i^{(t)}}\le n\exp\left\{-\epsilon \displaystyle\sum_{t=1}^T m_t^{(t)} \cdot p^{(t)}\right\}
+\end{equation}
+If we take log of each side and rearrange things, it should give the desired result. The details are left to the reader.
+\end{proof}
+\section{Multiplicative weights and LPs}
+\cite{DBLP:conf/focs/PlotkinST91} used MW to approximately solve packing/covering LPs.\medskip\\
+We'll show how to use MW for general LPs, assuming that we have a certain kind of oracle.
+\subsection{Setup}
+We want to check if 
+\begin{itemize}
+\item $Ax\ge b$ and $x\in P$ is feasible, where $P\subseteq \mathbb{R}^n$ is convex and $A\in \mathbb{R}^{m\times n}$.
+\item If $x$ is not feasible, we should say so. Otherwise, we should find an $x$ such that $x\in P$ and $Ax\ge b - \epsilon\cdot 1$ (the all 1's vector).
+\end{itemize}
+Note, this $\epsilon$ should be exponentially small in $m,n$. Let's look at an example of how to use this.
+\subsection{Example: Fractional Set Cover}
+Let $\alpha\in \mathbb{R}$ be such that $\alpha\ge OPT$. The LP is as follows:
+\begin{center}
+$\min \displaystyle\sum_S x_S$\\
+s.t. $\forall e, \displaystyle\sum_{e\in S} x_S\ge 1$\\
+$\forall S, x_S\ge 0$
+\end{center}
+Let 
+\begin{equation}
+P = \left\{ x: x\ge 0, \sum_S x_S \le \alpha\right\}
+\end{equation}
+Now we want to know if the $\displaystyle\sum_{e\in S} x_S\ge 1$ is feasible. The problem is we don't know $\alpha$. If we could get feasibility of a solution, we could just binary search on $\alpha$, where $\alpha\in [1,\ldots, m]$, where $m$ is the number of sets. \medskip\\
+The idea is using multiplicative weights, we would get and $x$ such that $\forall e, \displaystyle\sum_{e\in S} x_S\ge 1-\epsilon$. However, this might not be a feasible solution for the LP relaxation, but $\frac{x}{1-\epsilon}$ is feasible, and it achieves cost at most $\frac{\alpha}{1-\epsilon} = (1+O(\epsilon))\cdot \alpha$.\medskip\\
+The point of this is that we can use MW to get a fast algorithm to find such an $x$, and so the overall algorithm will be very fast.
+\subsection{Analogy with expert advice}
+Given some $x\in \mathbb{R}^n$, look at the cost
+\begin{equation}
+m_i = \langle A_i, x\rangle - b_i
+\end{equation}
+Each constraint i.e. row of $A$ is an expert. If $m$ is positive (i.e. $m_i\ge 0$ for all $i$) You should think of the experts telling you if constrain $i$ is hard: in a sense, the larger $m_i$ is, the "easier" condition $i$ was so expert $i$ was wrong.\medskip\\
+Eventually, MW will focus all of our weight on constraints that are not yet satisfied. Next time, we'll cover an analysis to show that the number of iterations needed to get the desired approximation, and the role of $P$ in this algorithm.
+\bibliographystyle{alpha}
+\begin{thebibliography}{}
+\bibitem[AHK12]{DBLP:journals/toc/AroraHK12}
+Sanjeev Arora, Elad Hazan, and Satyen Kale.
+\newblock The multiplicative weights update method: a meta-algorithm and
+  applications.
+\newblock {\em Theory of Computing}, 8(1):121--164, 2012.
+\bibitem[PST91]{DBLP:conf/focs/PlotkinST91}
+Serge~A. Plotkin, David~B. Shmoys, and {\'{E}}va Tardos.
+\newblock Fast approximation algorithms for fractional packing and covering
+  problems.
+\newblock In {\em 32nd Annual Symposium on Foundations of Computer Science, San
+  Juan, Puerto Rico, 1-4 October 1991}, pages 495--504, 1991.
+\end{thebibliography}
+\end{document}

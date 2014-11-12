@@ -151,25 +151,25 @@ The gradient descent rule, $x_1 = x_0 - \frac{1}{L}\nabla f(x_0)$, minimizes the
 
 Now, we need to use the lower bound on the Hessian matrix from 2 above to transform this into a convergence statement:
 \begin{equation}
-    f(y) \geq f(x) + <\nabla f(x), y-x> - \mu/2 \|x-y\|^2_2 \quad \forall (x,y)
+    f(y) \geq f(x) + \inprod{\nabla f(x), y-x} + \frac{\mu}{2} \|x-y\|^2_2 \quad \forall (x,y)
 \end{equation}
 With this bound, Fix $x = x_k$ and take the minimum over all $y$. The minimal value of $f(y)$ is clearly $f(x^*)$ (definition!).
 \begin{align}
-    f(x^*) \geq \min_y& \left(f(x_k) + <\nabla f(x_k), y-x_k> - \frac{\mu}{2} \|x_k-y\|^2_2\right) \\
+    f(x^*) \geq \min_y& \left(f(x_k) + \inprod{\nabla f(x_k), y-x_k} + \frac{\mu}{2} \|x_k-y\|^2_2\right) \\
     & = f(x_k) - \frac{1}{2\mu} \|\nabla f(x_k)\|^2_2 \quad \forall (x_k,y) \\ 
-    &\implies \|\nabla f(x_k)\|_2^2 \geq 2\mu (f(x_k) - f(x^*))
+    &\implies \|\nabla f(x_k)\|_2^2 \geq 2\mu \big(f(x_k) - f(x^*)\big)
     \label{bound2}
 \end{align}
 
 Combining equations \ref{bound1} and \ref{bound2}, we get:
 \begin{align}
 f(x_{k+1}) - f(x^*) &\leq f(x_k) - f(x^*) - \frac{1}{2L}\|\nabla f(x_0)\|^2_2 \\
-& \leq (1 - \mu/L) f(x_k) - f(x^*). 
+                    & \leq \left(1 - \frac{\mu}{L}\right) \big(f(x_k) - f(x^*)\big). 
 \end{align}
 
-Thus $\alpha  = 1 - \mu / L$. As a result, each step converges with a rate dependent on the ratio of the eigenvalues of the Hessian matrix.
+Thus $\alpha  = 1 - \frac{\mu}{L}$. As a result, each step converges with a rate dependent on the ratio of the eigenvalues of the Hessian matrix.
 
-To guarantee that we cut the error in half, gradient descent need $O(\frac{L}{\mu})$ iterations. Further, to reduce from $\Delta$ to $\epsilon \Delta$ requires $O(\frac{L}{\mu}\log{\epsilon})$ iterations. This is not optimal. Another method called ``Accellerated gradient descent'' cuts the error in half in $O(\sqrt{\frac{L}{\mu}})$ iterations \cite{Nesterov83}
+To guarantee that we cut the error in half, gradient descent need $O\left(\frac{L}{\mu}\right)$ iterations. Further, to reduce from $\Delta$ to $\epsilon \Delta$ requires $O\left(\frac{L}{\mu}\log\frac{1}{\epsilon}\right)$ iterations. This is not optimal. Another method called ``Accellerated gradient descent'' cuts the error in half in $O\left(\sqrt{\frac{L}{\mu}}\right)$ iterations \cite{Nesterov83}
 
 Next lecture, we will describe a second order optimization method -- Newton's method -- and bounds on its convergence rates. Then, Newton's method will be used to get $\tilde{x}(\lambda_{k+1})$ from $\tilde{x}(\lambda_k)$, finishing step 5 of the IPM algorithm.
 

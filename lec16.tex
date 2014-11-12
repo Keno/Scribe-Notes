@@ -1,0 +1,376 @@
+\documentclass[11pt]{article}
+\usepackage[latin9]{inputenc}
+\usepackage{amsmath}
+\usepackage{amssymb}
+
+\makeatletter
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%% User specified LaTeX commands.
+
+\usepackage{amsthm}
+
+\DeclareMathOperator*{\E}{\mathbb{E}}
+\let\Pr\relax
+\DeclareMathOperator*{\Pr}{\mathbb{P}}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\inprod}[1]{\left\langle #1 \right\rangle}
+\newcommand{\R}{\mathbb{R}}
+
+\newcommand{\handout}[5]{
+  \noindent
+  \begin{center}
+  \framebox{
+    \vbox{
+      \hbox to 5.78in { {\bf CS 224: Advanced Algorithms } \hfill #2 }
+      \vspace{4mm}
+      \hbox to 5.78in { {\Large \hfill #5  \hfill} }
+      \vspace{2mm}
+      \hbox to 5.78in { {\em #3 \hfill #4} }
+    }
+  }
+  \end{center}
+  \vspace*{4mm}
+}
+
+\newcommand{\lecture}[4]{\handout{#1}{#2}{#3}{Scribe: #4}{Lecture #1}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% 1-inch margins, from fullpage.sty by H.Partl, Version 2, Dec. 15, 1988.
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0pt
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6.5in
+
+\parindent 0in
+\parskip 1.5ex
+
+\makeatother
+
+\begin{document}
+\lecture{16 --- October 23, 2014}{Fall 2014}{Prof.\ Jelani Nelson}{Colin
+Lu}
+
+
+\section{Overview}
+
+In the last lecture we explored the simplex algorithm for solving
+linear programs. While it runs quickly for many practical applications,
+it actually does not run in polynomial time.
+
+In this lecture we will finish analyzing the simplex algorithm, and
+then look into strong duality and complementary slackness. We will
+then overview a polynomial time algorithm for solving linear programs,
+the ellipsoid algorithm. We will also introduce the Path-following
+interior point algoirhtm for solving linear programs, which is polynomial
+time, and faster in practice than the ellipsoid algorithm.
+
+
+\section{Simplex stuff}
+
+As before, we wish to use the simplex algorithm to solve the linear
+program: $\min c^{T}x|Ax=B,x\geq0$.
+
+The simplex algorithm moves from vertex to vertex of the polytope
+$P=\{x:Ax-b,x\geq0\}$. A vertex $x\in P$ is a point such that $A_{x}$
+has full column rank, where $A_{x}$ is a submatrix of $A$ specified
+by indices $B_{x}'=\{j:x_{j}>0\}$. Since the row rank is at most
+$m$, we have that $|B_{x}'|\leq m$.
+
+For each matrix $x$, assign basis $B_{x}\subset\{1,...,n\}$ with
+$|B_{x}|=m$ such that $A_{B_{x}}$ has rank exactly $m$. We can
+think of $B_{x}$ as $B'_{x}$ with additional columns so that it
+has full rank.
+
+In the simplex algorithm, we start at some vertex $x^{(0)}$ (we explored
+the process of selecting this vertex in the previous lecture), and
+greedily move to subsequent vertices until some halting condition.
+
+At any time, we represent our current vertex by some basis $B\subset\{1,...,n\}$,
+$|B|=m$, and let $N=[n]\backslash B$.
+
+We can think of the linear program as $\min c_{B}^{T}x_{B}+C_{N}^{T}x_{N}$
+subject to $A_{B}x_{B}+A_{N}x_{N}=b$, with $x_{B},x_{N}\geq0$.
+
+By muliplying both sides, we get that this is the same as minimizing
+$c_{B}^{T}A_{B}^{-1}b+(c_{N}-A_{N}^{T}(A_{B}^{-1})^{T}c_{B})^{T}x_{N}$.
+
+We define $\tilde{c}_{N}$ as $(c_{N}-A_{N}^{T}(A_{B}^{-1})^{T}c_{B})^{T}$,
+the ``reduced cost''
+
+The simplex algorithm proceeds as follows:
+\begin{enumerate}
+\item At first pass, assume $v_{B}>0$. ($v$ is the current vertex).
+\item While $\exists j\in N$ such that $\tilde{c}_{j}<0$, we increase
+the $j$th coordinate. This forces a decrease in some coordinates
+in $v$, according to the equation $v_{B}=A_{B}^{-1}(b-A_{N}v_{N})$.
+We decrease the $j$th coordinate until some coordinate of $v$ is
+0. 
+\item Otherwise, if $\tilde{c}_{j}\ge0$ for all $j$, then halt and declare
+that our current solution is optimal.
+\end{enumerate}
+
+\subsection{Pivoting Rules}
+
+However, in reality, we can't just assume that $v_{B}>0$. If $v_{B}>0$
+doesn't hold, and there exists some index $j\in N$ such that $\tilde{c}_{j}<0$,
+we will add $j$ to $B$ and kick out $k$ from $B$. However, there
+will often be a lot of choices for indices $j$ to add, and indices
+$k$ to remove. 
+
+Multiple ``pivoting'' rules exist for choosing $j$ and $k$ exist
+that provably avoid infinite loops, although some rules that can result
+in infinite loops are used in practice occasionally.
+
+One such rule that provably terminates is Bland's rule: 
+\begin{enumerate}
+\item Pick $j$ to minimize $\tilde{c}_{j}$. If multiple such $j$ exist,
+then just take the smallest such index $j$. 
+\item Define $r\in R^{n}$, $r_{B}=0$, $r_{N}=\tilde{c}_{N}$. $A'=A_{B}^{-1}A$,
+$b'=A_{B}^{-1}b$, and $q=\min_{k}\{\frac{b'_{k}}{A'_{k,j}}|A'_{k.j}>0\}$
+\item Pick $k$ to minimize $q$. If there is a tie, pick the smallest index
+$k$ minimizing $q$.
+\end{enumerate}
+Bland's rule can be shown to never result in an infinite loop. See
+the original paper \cite{BlandMOR77} for a proof, or the lecture notes \cite{Ye}.
+
+
+\subsection{Run-time}
+
+We will now analyze the running time of the simplex algorithm. At
+each iteration of the simplex algorithm, we take polynomial time to
+decrease the $j$th coordinate to perform a pivot. 
+
+The number of iterations is bounded above by the number of vertices,
+which is at most $\binom{n}{m}$ (since we can specify a vertex by
+its basis elements). In fact, it can be shown that the number of vertices
+is at most $\binom{n-\frac{m}{2}}{\frac{m}{2}}$. This follows from
+the ``Upper Bound Theorem'' proven by McMullen in\cite{McMullen71}.
+
+If we wanted to show a better bound than simply $\#vertices\times iterationtime$,
+one necessary step would be to show that the maximum diameter (longest
+shortest path) of a graph corresponding to a polytope in $d$ dimensions
+defined by $m$ hyperplanes is polynomial in $m$ and $d$ . If we
+were unable to do this, then in the worst case we might simply start
+``too far'' away from the optimal vertex.
+
+In 1957, Warren Hirsch conjectured that $diam\leq m-d$. His conjecture
+remained open for more than 50 years, before Santos disproved it in
+\cite{Santos11} with an explicit construction in which $d=43$, $m=86$,
+$diam\geq44$. He also showed that for fixed $d$, $\epsilon>0$,
+there exists an infinite family of polytopes with $m\rightarrow\infty$
+that have diameter at least $(1+\epsilon)m$.
+
+However, even if we managed to show that the maximum diameter of a
+polytope graph is small, we would also need to show that the simplex
+algorithm actually finds short paths within such graphs. It's still
+an open question as to whether there is a fast (i.e. worst case polynomial
+time) implementation of the simplex algorithm.
+
+
+\subsubsection{Simplex's speed in practice}
+
+Spielman and Teng in \cite{SpielmanT2014} used ``smoothed analysis''
+to explore why the simplex algorithms we use are fast in practice,
+despite the fact that haven't shown to be polynomial time in general.
+
+In smoothed analysis, we consider the average running time of a worst
+case instance with some small random independent noise added to all
+entries. Formally, the running time of an algorithm $A$ in smoothed
+analysis is $\min_{x}\mathbb{E}(runtime(A(\tilde{x})))$ , where $\tilde{x}$
+is $x$ with random noise added, $x$ is some input to the algorithm,
+and the expectation is taken over the noise added to $x$.
+
+Spielman and Teng showed that simplex algorithms have smoothed analysis
+times that are polynomial.
+
+
+\section{Strong Duality}
+
+Recall that the dual of our linear program $\min c^{T}x|Ax=B,x\geq0$,
+is the program $\max y^{T}b|A^{T}y\leq c$. Note that when we have
+equality constraints $Ax=b$, the dual variable $y$ does not need
+to be non-negative.
+
+There are multiple ways to get strong duality. We will show it as
+a corollary of the simplex algorithm.
+
+Define the ``shadow price vector'', $y=(A_{B}^{-1})^{T}c_{B}$.
+
+\begin{claim}
+  $c^{T}v_{B}=b^{T}y$ .
+\end{claim}
+
+\begin{proof}
+  Recall that we have $A_{B}v_{B}=b$, which tells us that $v_{B}=A_{B}^{-1}b$.
+  Hence, $c^{T}v_{B}=c^{T}A_{B}^{-1}b=b^{T}(A_{B}^{-1})^{T}c_{B}=b^{T}y$.
+\end{proof}
+
+This does not quite give us strong duality: we need to also show that
+$y$ is a feasible solution to the dual.
+
+Define the dual slack as $r=c-A^{T}y$. $y$ being feasible is equivalent
+to $r\geq0$. The definition of $y$ gives us that $r_{B}=0$, and
+that $r_{N}=\tilde{c}_{N}$. Note that the simplex algorithm halts
+when $\tilde{c}_{N}\geq0$, which implies that at this point, we have
+dual feasibility.
+
+
+\section{Complementary Slackness}
+
+We can define the ``complementarity gap'' as $x^{T}r=x^{T}(c-A^{T}y)=c^{T}x-(Ax)^{T}y=c^{T}x-b^{T}y$.
+
+
+\begin{theorem}
+  (complementary slackness): If $x^{*}$ and $y^{*}$ are optimal
+  for the primal and dual respectively, then for all $i$, either $x_{i}=0$,
+  or $r_{i}=(c-A^{T}y)_{i}=0$.
+\end{theorem}
+
+\begin{proof}
+  At optimality, by strong duality, there is no gap between the
+  primal and dual solutions, so $c^{T}x-b^{T}y=0=\sum x_{i}r_{i}$.
+  Since each $x_{i},r_{i}$ is non-negative, this can only be true if
+  for each $i$, either $x_{i}=0$ or $r_{i}=0$, as required.
+\end{proof}
+
+\section{Ellipsoid Algorithm}
+
+The first polynomial-time algorithm for solving linear programs is
+the ellipsoid algorithm, which was introduced by Shor, and applied
+to linear programs by Khachian in \cite{Khachian79}. We won't cover the full details of ellipsoid here but will just
+give a flavor of what goes on. If you want to see more details, see for example the notes from lectures 4 through 6 of \cite{Goemans01}.
+
+The ellipsoid algorithm itself tests the feasibility of some polytope
+$P=\{x:Ax\le b\}$.
+
+The ellipsoid algorithm only uses the constraints in one way: it wants
+an oracle that will tell it, given an infeasible point, a constraint
+that it violates. However, if an oracle is given indepednent of the
+contraints themselves, then that can be used instead of directly referencing
+them.
+
+Given some $a\in\R^n,A\in\R^{m\times n},$ the ellipsoid $E(a,A)=\{x|(x-a)^{T}A^{-1}(x-a)\leq1\}$.
+
+The ellipsoid algorithm is used to test the feasibility of some polytope
+$P=\{x:Ax\leq b\}$.
+
+The basic idea of the algorithm is to: 
+\begin{itemize}
+\item Start with some ellipsoid $E_{0}$ which is guaranteed to contain
+$P$. One way to do this is to compute the bit complexity of $P$,
+and use this to put an upper bound on the radius of a sphere needed
+to contain it.
+\item Let $a$ be the center of the current ellipsoid $E$. While $a$ is
+not in $P$, there exists some hyperplane $H$ corresponding to some
+constraint, such that $P$ lies entirely on the opposite side of $H$
+from $a$. Create a new ellipsoid $E'$ which still contains $P$
+and has smaller volume and repeat. Khachian showed that there is a
+way to do this such that $\frac{\mbox{vol}(E')}{\mbox{vol}(E)}\le e^{\frac{-1}{2n}}$.
+\item If $a\in P$, return $a$. If $\mbox{vol}(E)$ has become ``too small'',
+declare that $P$ is empty.
+\end{itemize}
+This has a problem, in that the polytope $P$ could lie in a lower
+dimensional subspace, such that it has zero volume, but still contains
+points. To fix this, we do some pre-processing:
+
+Theorem: Let $L$ be the ``bit complexity'' of $P$. $L\sim\log(\max_{i,j}|A_{ij}|+\|b\|_{\infty}+m+n)$.
+Define $P'=\{x:Ax\leq b+2^{-L},\forall j,-2^{L}\leq x_{j}\leq2^{L}\}$.
+Then $P\mbox{ is infeasible \ensuremath{\iff}\ensuremath{P'}is infeasible}$.
+Thus, we can then apply the above algorithm to $P'$ in order 
+
+
+\subsection{Application to solving linear program}
+
+Suppose we actually want to solve a linear program $\min c^{T}x$,
+such that $Ax=b$, $x\geq0$.
+
+We can solve it using the ellipsoid algoirthm as follows:
+\begin{enumerate}
+\item Check if $P=\{x|Ax=b\}$ is feasible. If not, output ``not feasible''.
+\item Write the dual: $\max b^{T}y$ such that $A^{T}y\leq c$. Check that
+$P_{dual}=\{y:A^{T}y\leq c\}$ is feasible. If not, then output ``unbounded''.
+\item Find $(x,y)$ that is feasible for the polytope defined by $\{Ax=b,x\geq0,A^{T}y\leq c.c^{T}x=b^{T}y\}$.
+This pair $(x,y)$ give optimal solutions for the primal and dual
+respectively.
+\end{enumerate}
+
+\subsubsection{Run-time of ellipsoid algorithm on linear programs}
+
+For the $k$th ellipsoid $E_{k}$, we have that $\mbox{vol}(E_{k})\leq e^{\frac{-k}{2n}}\mbox{vol}(E_{0})$.
+We stop the algorithm when this volume is less than that of $P'$,
+which takes a polynomial number of iterations.
+
+
+\section{Path-following interior point}
+
+Path-following interior point is another algorithm that gives polynomial
+time solutions to linear programs. It was introduced by Karmarkar
+in \cite{Karmarkar84}.
+
+The interior point algorithm gradually tries to reach an optimal vertex
+while staying in the interior of $P$. It introduces a variable that
+makes it very easy to satisfy the constraints, but is penalized heavily
+in the objective function. With this variable, it is very easy to
+find a starting interior point, and then iterates on this point.
+
+For the interior point algorithm, we'll look at linear programs of
+the form $\min c^{T}x|Ax\geq b$, and define the slackness $S(x)=Ax-b$.
+For interior point, we attempt to compute $\min_{x\in\mathbb{R}^{n}}\lambda c^{T}x+p(S(x))$
+where $p$ is a ``barrier function'' such that $p(z)\rightarrow\infty$
+if $z_{i}\rightarrow0$ for any $i$. In particular, we'll use the
+``log barrier'' function, $p(z)=-\sum_{i=1}^{m}\ln(z_{i})$.
+
+For very small $\lambda$, $\min_{x\in\mathbb{R}^{n}}\lambda c^{T}x+p(S(x))$
+is a kinda of central point in the polytope, and we iterate, incrementing
+$\lambda$ and modifying $x$, until $\min_{x\in\mathbb{R}^{n}}\lambda c^{T}x+p(S(x))$
+is approximately a vertex, and can then be ``rounded'' to the nearest
+vertex. We'll analyze the interior point algorithm in more detail
+in the next lecture.
+\begin{thebibliography}{1}
+\bibitem{BlandMOR77}
+Robert~Bland.
+\newblock New Finite Pivoting Rules for the Simplex Method.
+\newblock {\em Mathematics of Operations Research}, 2(2):103--107, 1977.
+
+\bibitem{McMullen71}Peter McMullen. The maximum numbers of faces
+of a a convex polytope. Mathematika 17:179-184, 1971.
+
+\bibitem{Santos11}Francisco Santos. A counterexample to the Hirsch
+conjecture, Annals of Mathematics 176 (10: 383-412, doi:10.4007/annals.2012.176.1.7,
+2011.
+
+\bibitem{SpielmanT2014}Daniel A. Spielman, Shang-Hua Teng. Smoothed
+analysis of algorithms. Why the simplex algorithm usually takes polynomial
+time. J. ACM 51(3): 385-463, 2004.
+
+\bibitem{Goemans01}
+Michel~Goemans.
+\newblock Combinatorial Optimization Lecture notes on the ellipsoid algorithm.
+\texttt{http://www-math.mit.edu/{\textasciitilde}goemans/18433S09/ellipsoid.pdf}.
+
+\bibitem{Khachian79}Leonid Khachian. A polynomial algorithm in linear
+programming. Doklady Akademi Nauk USSR 244:1093-1096, 1979.
+
+\bibitem{Karmarkar84}Narendra Karmarkar. A New Polynomial Time Algorithm
+for Linear Programming. Combinatorica, Vol 4, 4:373-395, 1984.
+
+\bibitem{Ye}
+Yinyu Ye.
+\newblock MS{\&}E310 Linear Optimization Autumn Course Notes on Bland's Rule.
+\newblock \texttt{http://web.stanford.edu/class/msande310/blandrule.pdf}.
+\end{thebibliography}
+
+\end{document}
