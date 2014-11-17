@@ -1,0 +1,194 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+
+\DeclareMathOperator*{\E}{\mathbb{E}}
+\let\Pr\relax
+\DeclareMathOperator*{\Pr}{\mathbb{P}}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\inprod}[1]{\left\langle #1 \right\rangle}
+\newcommand{\R}{\mathbb{R}}
+
+\newcommand{\handout}[5]{
+  \noindent
+  \begin{center}
+  \framebox{
+    \vbox{
+      \hbox to 5.78in { {\bf CS 224: Advanced Algorithms } \hfill #2 }
+      \vspace{4mm}
+      \hbox to 5.78in { {\Large \hfill #5  \hfill} }
+      \vspace{2mm}
+      \hbox to 5.78in { {\em #3 \hfill #4} }
+    }
+  }
+  \end{center}
+  \vspace*{4mm}
+}
+
+\newcommand{\lecture}[4]{\handout{#1}{#2}{#3}{Scribe: #4}{Lecture #1}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% 1-inch margins, from fullpage.sty by H.Partl, Version 2, Dec. 15, 1988.
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0pt
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6.5in
+
+\parindent 0in
+\parskip 1.5ex
+
+\begin{document}
+
+\lecture{22 --- November 11, 2014}{Fall 2-14}{Prof.\ Jelani Nelson}{Malcolm Granville}
+
+\section{Overview}
+In the previous lecture we looked at blocking flows. The idea was to repeatedly find a blocking flow $f$, and augment our flow by $f$. Total time was $(\#\mbox{iterations})\cdot(\mbox{time to find a blocking flow})\le (n-1)\cdot O(mn)$.
+
+The next few topics will be
+\begin{itemize}
+\item Link-cut trees
+\item Min cost max flow
+\end{itemize}
+
+\section{Link-cut Trees \cite{ST83}}
+These can be used to find a blocking flow in time $O(m\log n)$. They will store a collection of vertex disjoint rooted trees, and allow the following operations:
+\begin{enumerate}
+\item makeTree$()$: makes a new vertex and puts it in a singleton tree
+\item findRoot$(v)$: returns the root of the tree containing $v$
+\item cut$(v)$: destroys the edge $(v,\mbox{parent}(v))$
+\item findMin$(v)$: returns the lowest capacity edge on the path from $v$ to its root. If there is a tie, return the edge closest to the root.
+\item  subtract$(v,x)$: subtracts $x$ from the capacity of every edge on the $v$-root path
+\item addFlow$(v,x)$: adds $x$ to the flow variable for every edge no the $v$-root path
+\item link$((v,w),x)$: assumes $v$ is the root of its tree, and that $v,w$ are in different trees. Makes $v$ a child of $w$ with capacity $x$.
+\end{enumerate}
+
+\subsection{Blocking Flow Algorithm}
+initially, makeTree$()$ $n$ times
+\\
+while(true):
+\\
+$\mbox{ }\quad v=\mbox{findRoot}(s)$
+\\
+\mbox{ }\quad if $(v==t)$
+\\
+\mbox{ }\quad //$(z,\mbox{parent}(z))$ is a min capacity edge with weight $x$
+\\
+\mbox{ }\quad $(z,x)=\mbox{findMin}(s)$
+\\
+\mbox{ }\quad subtract$(s,x)$
+\\
+\mbox{ }\quad cut$(z)$
+\\
+\mbox{ }\quad delete$(z,\mbox{parent}(z))$ from the level graph
+\\
+\mbox{ }\quad continue
+\\
+else
+\\
+\mbox{ }\quad //try to advance
+\\
+\mbox{ }\quad if $v$ has an outgoing edge to some $w$ in $L$:
+\\
+\mbox{ }\quad\quad link$((v,w),\mbox{capacity}(v,w))$
+\\
+\mbox{ }\quad else
+\\
+\mbox{ }\quad \quad if $(v==s)$: break
+\\
+\mbox{ }\quad \quad else for every child $y$ of $v$
+\\
+\mbox{ }\quad \quad \quad cut$(y)$
+\\
+\mbox{ }\quad \quad \quad delete$(y,v)$ from $L$
+
+\subsection{Discussion}
+The basic idea of link-cut trees is to store (potentially unbalanced) trees using balanced BSTs. Every operation will run in $O(\log n)$ time (today, we get amortized $O(\log n)$ time). For each tree, we will maintain a \emph{preferred path decomposition}: every vertex will have a \emph{preferred child}:
+$$\mbox{preferredChild(v)}=\begin{cases} 
+\mbox{none if $v$ was the last nodee accessed in its subtree} \\
+\mbox{the child containing the subtree containing the last accessed node in $v$'s subtree o.w.}
+\end{cases}$$
+An edge leading to a preferred child will be called a \emph{preferred edge}. A \emph{preferred path} is a maximal chain of preferred edges. Then a \emph{preferred path decomposition} is a tree on the preferred edges. Link-cut trees explicitly maintain this decomposition. Each preferred path will be stored in a splay tree, keyed by depth (a higher node in the tree is smaller). Call the splay tree to store a path an \emph{auxiliary tree}. Call the actual tree $T$ a \emph{represented tree}. The root of each auxiliary tree will have a \emph{pathparent} pointer, telling us the parent of the top node of the path in the represented tree.
+
+\subsection{Helper Operation}
+access$(v)$ will make the root-$v$ path in $T$ preferred. The implementation is as follows:
+\\
+\\
+make sure $v$ is the root of the root of the tree of auxiliary trees, $v$ is in some auxiliary tree
+\\
+splay$(v)$
+\\
+$v$.right.pathparent=$v$
+\\
+$v$.right.parent=none
+\\
+$v$.right=none
+\\
+let $w$ be the pathparent of $v$'s auxiliary tree
+\\
+splay$(w)$
+\\
+$w$.right.pathparent=$w$
+\\
+$w$.right.parent=none
+\\
+$w$.right=$v$
+\\
+$v$.pathparent=none
+\\
+$v$.parent=$w$
+\\
+splay$(v)$
+\\
+$v$.pathparent=$w$.pathparent
+\\
+$w$.pathparent=none
+\\
+\\
+The runtime of acess depends on the number of preferred child changes after accessing $w$.
+
+
+\subsection{Implementation of Other Operations}
+\begin{itemize}
+\item findRoot$(v)$:
+\\ access$(v)$
+\\ return the loest depth eleemtn $r$ in $v$'s auxiliary tree
+\\  access$(r)$
+\item findMin$(v)$:
+\\ access$(v)$
+\\ return the minimum value in $v$'s auxiliary tree
+\item cut$(v)$:
+\\ access$(v)$
+\\ $v$.left.parent=none
+\\ $v$.left=none
+\item link$(v,w)$:
+\\ access$(v)$
+\\ access$(w)$
+\\ $v$.left=$w$
+\\ $w$.parent=$v$
+\end{itemize}
+Question for the next lecture/problem set: Why are all of these operations $O(\log n)$ amortized?
+
+\bibliographystyle{alpha}
+
+\begin{thebibliography}{42}
+
+\bibitem{ST83}
+Daniel D. Sleator, Robert Endre Tarjan.
+\newblock Network Flow and Testing Graph Connectivity.
+\newblock {\em J. Comput. Syst. Sci. } 26 (3) , 362-391 .
+\end{thebibliography}
+
+\end{document}
