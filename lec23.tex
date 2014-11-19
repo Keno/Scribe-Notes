@@ -1,0 +1,218 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm}
+
+\DeclareMathOperator*{\E}{\mathbb{E}}
+\let\Pr\relax
+\DeclareMathOperator*{\Pr}{\mathbb{P}}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\inprod}[1]{\left\langle #1 \right\rangle}
+\newcommand{\R}{\mathbb{R}}
+
+\newcommand{\handout}[5]{
+  \noindent
+  \begin{center}
+  \framebox{
+    \vbox{
+      \hbox to 5.78in { {\bf CS 224: Advanced Algorithms } \hfill #2 }
+      \vspace{4mm}
+      \hbox to 5.78in { {\Large \hfill #5  \hfill} }
+      \vspace{2mm}
+      \hbox to 5.78in { {\em #3 \hfill #4} }
+    }
+  }
+  \end{center}
+  \vspace*{4mm}
+}
+
+\newcommand{\lecture}[4]{\handout{#1}{#2}{#3}{Scribe: #4}{Lecture #1}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{assumption}[theorem]{Assumption}
+
+% 1-inch margins, from fullpage.sty by H.Partl, Version 2, Dec. 15, 1988.
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0pt
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6.5in
+
+\parindent 0in
+\parskip 1.5ex
+
+\newcommand{\on}{\operatorname}
+
+\begin{document}
+
+\lecture{23 --- 11/18/2014}{Fall 2014}{Prof.\ Jelani Nelson}{Jeffrey Yan}
+
+\section{Overview}
+\begin{itemize}
+    \item Finish link-cut analysis (will show $O(\log^2 n)$).
+    \item Min cost max flow.
+\end{itemize}
+
+\section{Last time}
+\begin{itemize}
+    \item \texttt{access}($v$) makes $v$ the root vertex of root tree of aux trees.
+    \item \texttt{cut}($v$): \texttt{access}(v), v.left.parent = none, v.left = none
+    \item \texttt{link}($v$, $w$): \texttt{access}(v), \texttt{access}(w), v.left = w, w.parent = v.
+\end{itemize}
+
+(number of splays during access) = 1 + PCC, where PCC is the number of preferred child changes in this access call.
+Therefore, runtme of $m$ operations is at most $\text{cost(splay)}\times (m+\text{PCC}) \leq O(\log n) \times (m + \text{PCC})$.
+
+Before we bound PCC...
+
+\section{Heavy-light decomposition}
+\begin{definition}{Heavy light decomposition}
+
+For vertex $v$, define $\text{size}(v)$ to be the size of its subtree. We say $(u,v)$ is ``light" if $\text{size}(u)\leq \frac{\text{size}(v)}{2}$ and otherwise we way it's ``heavy".
+\end{definition}
+
+Thus each edge is one of 4 types $\{\on{light},\on{heavy}\}\times\{\on{preferred},\on{not preferred}\}$.
+
+If $(u,v)$ ($v$ is parent($v$)) used to be preferred, but now $(w,v)$ is, then we say $(u,v)$ was ``destroyed" and $(w,v)$ was ``created."
+
+\begin{claim}
+    $\on{PCC}\leq 2\on{LPCC} + m + n$, where $LPCC$ stands for light preferred child creation.
+\end{claim}
+\begin{proof}
+    Say $(u,v)$ is destroyed and $(w,v)$ is created.
+    If $(w,v)$ is light, it's counted on both sides.
+    If $(w,v)$ is heavy, we have two cases.
+    \begin{itemize}
+        \item Case 1: $u = \on{null}$. Either this is first access in $v$'s subtree (happens at most $n$ times), or last access in $v$'s subtree was to $v$. Charge this to the last access on $v$ (happens at most $m$ times).
+        \item Case 2: $u\neq \on{null}$. We destroyed preferred light edge $(u,v)$. Charge to its creation (hence factor of $2$ in the bound).
+    \end{itemize}
+\end{proof}
+
+Now let's bound $\on{LPCC}$ across access/link/cut.
+\begin{itemize}
+    \item access: on any root-to-$v$ path in rep. tree, number of light edges $\leq \log(n)$ and light vs heavy doesn't change.
+    \item link($v$, $w$): We first do access($v$) and access($w$). Then all edges along preferred child path to $w$ got heavier, which we aren't counting (if they're light their creations were counted in access). Other edges hanging off this path got lighter, but they aren't preferred.
+    \item cut($v$): cuts off $v$ from its parent $w$ in rep tree. This time edges hanging off preferred path to $w$ got heavier, so we stil don't count these. However, there are some LPCC's along this path, but at most $\log(n)$ of them. Therefore, in total, LPCC"s across $m$ operations is $O(m\log(n)$.
+\end{itemize}
+Therefore the total time is $O(m\log^2(n) + n\log(n))$.
+For operations like add and subtracting flow, we use augmented BST's to achieve the same time bound.
+
+\section{Min cost max flow}
+New problem: Each edge also has a cost $c(e)$ (possibly negative). Capacities are in $\{1,\ldots, U\}$. Costs are in $\{1,\ldots,C\}$. Goal is to find max $s-t$ flow $f$ which
+minimizes $\on{cost}(f) = \sum f_e c(e)$.
+
+Note: in residual graph, reverse of edge $e$ has cost $-c(e)$.
+
+Related problem: Min cost circulation, where a circulation is a flow such that there is zero net flow through all vertices.
+
+\begin{claim}\label{clm:mcmf-mcc}
+    MCMF and MCC efficiently reduce to each other.
+\end{claim}
+
+\begin{proof}
+    To get MCMF$\implies$MCC, create isolated source and sink.
+
+    To get MCC$\implies$MCMF, max flow $f$ in $G$, and then add on the MCC of the residual graph. This is valid because the difference of
+    any two flows with the same value (e.g. any two max flows) is a circulation.
+\end{proof}
+
+Proposed algorithm for MCC: while there exists a negative cost cycle in residual graph, augment along that cycle.
+
+We can find negative cost cycles in time
+\begin{itemize}
+    \item $O(mn)$ by Bellman-Ford.
+    \item $O(m\sqrt{n}\log(C))$ by \cite{Goldberg}
+\end{itemize}
+
+\begin{proof}
+    Proof of correctness: Say we have circulation $f$ stricly worse than MCC $f^*$. Note that $f^*-f$ is a negative cost circulation that is feasible in the residual graph. Since circulations decompose into cycles, we can augment by a negative cycle. Thus, once the algorithm terminates, we have found an MCC.
+\end{proof}
+
+Runtime with Bellman Ford: $O(mn(mUC))$. There are at most $2mUC$ iterations (each iteration decreases cost by at least one, and the initial cost is at most $mUC$ and can never be less than $-mUC$. The per-iteration cost is $O(mn)$ using Bellman Ford.
+
+\begin{definition}
+    A price function $p:V\to\R$ induces a reduced cost function $c_p(u,v) = c(u,v) + p(u) - p(v)$.
+\end{definition}
+
+\begin{claim}
+   $f$ is MCC iff there exists price function $p$ in $G_f$ such that all reduced costs are nonnegative.
+\end{claim}
+
+\begin{proof}
+    Suppose there exists such a $p$. Then all cycles are nonnegative because price functions cancel along cycle.
+
+    Suppose $G_f$ has no negative cycles. Introduce new vertex $s$ with 0-cost edges to all $v$. Define $p(u) = d(s,u)$. Triangle inequality implies that $c_p\geq 0$.
+\end{proof}
+
+How can we get a faster algorithm for MCMF?
+
+Simple case: no negative cost edges, and all capacities are 1.
+
+Shortest Augmenting Paths (SAP) algorithm: Find shortest $s-t$ path in residual graph (by cost), and augment along this path. Repeat until we have found a max flow.
+The runtime of this is $O(nm + n^2\log(n))$, because there are at most $n$ iterations, with $O(m+n\log(n))$ per iteration using Dijkstra wtih Fibonacci heaps.
+
+\begin{claim}
+    There will never be negative reduced costs in the residual graph.
+\end{claim}
+
+\begin{proof}
+    Set prices as $p(v) = d(s,v)$ in residual graph. Any edge we augment along is in a shortest path, so its reduced cost is 0 (so is its reversed edge). Therefore, we never add negative reduced cost edges to the residual graph, and thus the residual graph never has a negative cost cycle.
+\end{proof}
+
+Recall a max flow is an MCMF when the residual graph has no negative cycles, so this algorithm is correct. The running time is $O((m+ n\log n)n)$ (at most $n$ iterations since we push one more unit of flow each iteration and the out-capcaity of $s$ is at most $n$; $O(m + n\log n)$ per iteration via Dijkstra's algorithm using Fibonacci heaps.
+
+\subsection{Min cost circulation using SAP}
+Here again we will assume all capacities are $1$, but we will not assume that there are no negative cost cycles (else the zero flow is the MCC!). How can we use SAP in this scenario?
+
+First, define a flow $f$ which fully saturates all negative cost edges. That is, if edge $e$ has cost $c(e) < 0$, then set $f_e = -1$; else set $f_e = 0$. Now in the residual graph all edge costs are nonnegative (and all positive capacities are still 1). Unfortunately, there is no reason to expect this $f$ to be a circulation, which is what remains to be fixed.
+
+Note that given our current flow is $f$, some vertices $v$ have flow {\em excess}, i.e.\ the outflow of $v$ minus the inflow of $v$ is some positive number $g(v) > 0$. Meanwhile some vertices might have flow {\em deficit}, i.e.\ $g(v) < 0$. We need to fix this by sending the excess flow to the deficits (and we want to do this in the cheapest way possible). This can be done by, modifying the residual graph $G_f$ to create a new graph $G'_f$. We do this by defining a new source vertex $s$ and sink vertex $t$. For all $v$ with $g(v) > 0$, we create an edge $(s,v)$ in $G_f'$ with $0$ cost and capacity $g(v)$. For all $v$ with $g(v) < 0$, we create an edge $(v,t)$ with $0$ cost and capacity $-g(v)$. Now we wish to find a min cost max flow from $s$ to $t$ in $G'_f$. Clearly the max flow value saturates all out-edges from $s$. This is because one valid flow in $G'_f$ is to simply saturate all out-edges from $s$, in-edges to $t$, and also add $-f$ (i.e.\ send flow back on the edges we fully saturated in the first place). Therefore, a max flow in $G'_f$ added to $f$ is indeed a circulation in $G$. The min cost such max flow then provides an MCC.
+
+\subsection{Min cost max flow using SAP}
+What about unit capacity MCMF but when we aren't promised that there are no negative cost cycles? Recall the reduction from MCMF to MCC in the proof of Claim~\ref{clm:mcmf-mcc}. We can perform this reduction (the result of which still has unit capacities) then run the MCC algorithm from the last subsection.
+
+On problem set 8, problem 4, you will design a scaling algorithm that can handle general capacities in $\{1,\ldots,U\}$. The running time is $O(m(m+n\log n)\log U)$.
+
+Recently Lee and Sidford showed an interior-point based algorithm achieving time $\tilde{O}(m\sqrt{n}\log^2 U)$ (note MCMF can be formulated as an LP). We say $g = \tilde{O}(f)$ when $g = O(f \cdot \log^c f)$ for some constant $c$. A technically incomparable algorithm (though slower unless $U$ is very large) achieves time $O(nm\log\log U\log(nC))$ by scaling both in terms of capacity and costs \cite{AGOT92}. The fastest strongly polynomial algorithm is due to \cite{Orlin93} and takes time $O(m\log n(m + n\log n))$. See the encyclopedia article on min cost max flow for more references and history on the problem \cite{AMO09}.
+
+\bibliographystyle{alpha}
+
+\begin{thebibliography}{42}
+
+\bibitem{AGOT92}
+Ravindra K. Ahuja, Andrew V. Goldberg, James B. Orlin, Robert Endre Tarjan.
+\newblock Finding minimum-cost flows by double scaling. 
+\newblock {\em Math. Program.} 53, 243--266, 1992.
+
+\bibitem{AMO09}
+Ravindra K. Ahuja, Thomas L. Magnanti, James B. Orlin.
+\newblock Minimum Cost Flow Problem. 
+\newblock {\em Encyclopedia of Optimization}, pages 2095--2108, 2009.
+
+\bibitem{Goldberg}
+Andrew~Goldberg.
+\newblock Scaling Algorithms for the Shortest Paths Problem.
+\newblock {\em SIAM J. Comput.}, 24(3), 494–-504.
+
+\bibitem{LS13}
+Yin Tat Lee, Aaron Sidford.
+\newblock Following the Path of Least Resistance : An $\tilde{O}(m\sqrt{n})$ Algorithm for the Minimum Cost Flow Problem.
+\newblock {\em CoRR} abs/1312.6713, 2013.
+
+\bibitem{Orlin93}
+James B. Orlin. 
+\newblock A faster strongly polynomial minimum cost flow algorithm. 
+\newblock {\em Operations Research}, 41(2), 338-350, 1993.
+
+\end{thebibliography}
+
+\end{document}
