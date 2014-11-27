@@ -1,0 +1,402 @@
+\documentclass[11pt]{article}
+\usepackage{amsmath,amssymb,amsthm,hyperref}
+
+\DeclareMathOperator*{\E}{\mathbb{E}}
+\let\Pr\relax
+\DeclareMathOperator*{\Pr}{\mathbb{P}}
+
+\newcommand{\eps}{\varepsilon}
+\newcommand{\inprod}[1]{\left\langle #1 \right\rangle}
+\newcommand{\R}{\mathbb{R}}
+\renewcommand{\P}{\mathbb{P}}
+\newcommand\dif{\mathop{}\!\mathrm{d}}
+
+\newcommand{\handout}[5]{
+  \noindent
+  \begin{center}
+  \framebox{
+    \vbox{
+      \hbox to 5.78in { {\bf CS 224: Advanced Algorithms } \hfill #2 }
+      \vspace{4mm}
+      \hbox to 5.78in { {\Large \hfill #5  \hfill} }
+      \vspace{2mm}
+      \hbox to 5.78in { {\em #3 \hfill #4} }
+    }
+  }
+  \end{center}
+  \vspace*{4mm}
+}
+
+\newcommand{\lecture}[4]{\handout{#1}{#2}{#3}{Scribe: #4}{Lecture #1}}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{observation}[theorem]{Observation}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{claim}[theorem]{Claim}
+\newtheorem{fact}[theorem]{Fact}
+\newtheorem{assumption}[theorem]{Assumption}
+\newtheorem{example}[theorem]{Example}
+
+% 1-inch margins, from fullpage.sty by H.Partl, Version 2, Dec. 15, 1988.
+\topmargin 0pt
+\advance \topmargin by -\headheight
+\advance \topmargin by -\headsep
+\textheight 8.9in
+\oddsidemargin 0pt
+\evensidemargin \oddsidemargin
+\marginparwidth 0.5in
+\textwidth 6.5in
+
+\parindent 0in
+\parskip 1.5ex
+
+\newcommand{\Oh}{\mathcal{O}}
+\newcommand{\Ohstar}{\Oh^\ast}
+\newcommand{\ohstar}{\Oh^\ast}
+\newcommand{\poly}{\text{poly}}
+\newcommand{\sets}{\textbf{sets }}
+\newcommand{\query}{\text{query}}
+\newcommand{\support}{\text{support}}
+\newcommand{\Var}{\mathrm{Var}}
+
+\begin{document}
+
+\lecture{Lecture 25 --- November 25, 2014}{Fall 2014}{Prof.\ Jelani Nelson}{Keno Fischer}
+
+\section{Today}
+
+\begin{itemize}
+    \item Finish faster exponential time algorithms (Inclusion-Exclusion/Zeta Transform, M\"obius inversion)
+    \item Streaming/Sketching
+\end{itemize}
+
+\section{Last time}
+
+\begin{fact}[Inclusion-Exclusion]
+\[
+\forall R \subset T \qquad \sum_{R \subset S \subset T} (-1)^{|T\backslash S|} = [ R = T ]
+\]
+\end{fact}
+
+\begin{definition}[Zeta transform]
+
+Given a function 
+\[
+f: \sets \to \text{some ring}
+\]
+let $\hat{f}$ be the zeta transform given by
+\[
+\hat{f}(S) = \sum_{R \subset S} f(R)
+\]
+
+\end{definition}
+
+\begin{claim}[$k$-coloarbility]\label{k-color}
+Define
+\[
+f(S) = [ \text{S is a non-empty independent set } ]
+\]
+Then, a graph $G$ is k-colorable iff $\sum_{S\in V} (-1)^{V\backslash S} (\hat{f}(S))^k > 0$
+\end{claim}
+
+Will see this proof as special case of something more general:
+\begin{itemize}
+\item $\Ohstar(3^n)$ time, $\poly(n)$ space ~\cite{BjorklundH06}
+\item $\Ohstar(2^n)$ time/space ~\cite{koivisto20062}
+
+\item The first of the 2 papers also gets $\Ohstar(2.2461^n)$ time and $\poly(n)$ space
+
+\underline{OPEN:} $\Ohstar(2^n)$ time, $\poly(n)$ space.
+
+\end{itemize}
+
+\section{Zeta transforms, M\"obius inversion}
+
+\subsection{More generally}
+
+\begin{definition}{Zeta transform, M\"obius inversion}
+
+Given 
+\[f: \sets \to \text{some ring}\]
+let the \textit{Zeta transform} of $\hat{f}$ of $f$ be given by
+\[ \hat{f}(S) = \sum_{R \subset S} f(R) \]
+and define the M\"obius inversion $\tilde{f}$ of $f$ to be
+\[ \tilde{f}(S) = \sum_{R \subset S} (-1)^{|S \backslash R|} f(R) \]
+
+\end{definition}
+
+\begin{claim}[Zeta Inverse]
+\label{zetam}
+\[
+\hat{\tilde{f}} = \tilde{\hat{f}} = f
+\]
+\end{claim}
+\begin{proof}
+We will show $\hat{\tilde{f}} = f$ (Showing $\tilde{\hat{f}}$ is similar)
+
+\[ \tilde{f}(S) = \sum_{R\subset S} (-1)^{|S\backslash R|} f(R) \]
+so
+\[
+\hat{\tilde{S}} = \sum_{S \subset T} \sum_{R \subset S} (-1)^{|S \backslash R|} f(R)
+= \sum_{R \subset S \subset T} (-1)^{|S \backslash R|} f(R)
+\]\[
+\sum_{R \subset T} f(R) \sum_S [ R \subset S \subset T ] (-1)^{S}
+\]
+equals f(R) by inclusion exclusion.
+\end{proof}
+
+\subsection{Proving \autoref{k-color} (k-colorability)}
+
+Define 
+\[
+g(S) = \text{\# of ways to write S as a union of $k$ non-empty independent sets}
+\]
+\begin{fact}
+$g(V) > 0 \iff \text{G is k-colorable}$
+\end{fact}
+
+\begin{claim}
+$g(V) = \tilde{\hat{g}}(V) = \overset{\sim}{\hat{f}^k}(V)$ (where f as in \autoref{k-color})
+\begin{proof}
+
+We will show that $\hat{g}(S) = (\hat{f}(S))^k$.
+Under the definition of the zeta transform $\hat{g}(S)$ counts the number ways to construct $k$-independent subsets of $S$ such that there union is contained in $S$ (g counts the same for the union being equal to $S$).
+Note that any union of $k$ non-empty independent subsets of $S$ satisfies, this definition, so $\hat{g}(S)$ is given by the number of independent sets raised to the $k$-th power, which is precisely the right hand side.
+
+\end{proof}
+\end{claim}
+
+\begin{claim}
+Can compute all $\hat{f}(S)$ (or $\tilde{f}(S)$) values sequentially in time $\Ohstar(3^n)$, $\poly(n)$ space
+\end{claim}
+\begin{proof}
+
+\[ \hat{f}(S) = \sum_{R \subset S} f(R) \]
+
+We want to compute $\hat{f}(S)$ for all $S$. Time up to star is $\sum_{R \subset S} 2^{|R|} = \sum_{i=1}^n {n \choose i} 2^i \leq 3^n$
+
+\end{proof}
+
+What about a faster algorithm?
+
+\subsection{Yates' algorithm}
+
+We can solve this problem in $\Ohstar(2^n)$ time/space using Yates' algorithm, which is a dynamic programming approach.
+
+
+We want to compute $\hat{f}(S) \; \forall S \subset \{1, \ldots, n\}$. 
+
+Define
+\[
+g(i,S) = \sum_{R \subset S} [S(i) = R(i)] \cdot f(R)
+\]
+\[
+S(i) = S \cap \{i+1,\ldots,n\}
+\]
+
+Note: $\hat{f}(S) = g(n,S)$
+
+\begin{claim}
+We can compute $g(i,S)$ using the recurrence
+
+\[
+g(i,S) = \begin{cases}
+f(S) &\mbox{if } i = 0 \\
+g(i-1,S) + [i \in S] \cdot g(i-1,S\backslash \{i\}) &\mbox{if } i > 0
+\end{cases}
+\]
+
+hence we can compute $g(n,S)$ in space $\Ohstar(2^n)$ and time proportional to space as every computation if a constant number of recursive calls plus possibly a constant number of arithmetic operations.
+
+\begin{proof}
+We can write
+\[
+g(i,S) =
+    \sum_{\substack{
+        R\subset S \\
+        i \in R}}
+            [S(i) = R(i)] \cdot f(R)
+  + \sum_{\substack{
+        R \subset S \\
+        i \notin R}}
+            [S(i) = R(i)] \cdot f(R)
+\]
+
+We have two cases:
+\begin{itemize}
+\item[$i \notin S$:]
+Since $i \notin S$ and $R \subset S$, $i \notin R$, so the first sum is zero. Now, since $i \notin S$, $S(i) = S(i-1)$ and similarly $R(i) = R(i-1)$, so the second sum is given by
+\[ \sum_{R \subset S} [ S(i-1) = R(i-1) ] \cdot f(R) = g(i-1,S) \]
+
+\item[$i \in S$]:
+Since $i$ is in both $R$ and $S$, $S(i) = R(i)$ iff $S(i-1) = R(i-1)$.
+
+So the first sum equals:
+\[ \sum_{R\subset S} [ S(i-1) = R(i-1) ] \cdot f(R) = g(i-1,S) \]
+In the second sum we want $R$ which agrees with $S$ from $i$ onward, so it agrees with $S\backslash \{i\}$ from i onward:
+
+\[
+\sum_{R \subset S} [(S \backslash \{i \})(i-1) = R(i-1)] \cdot f(R) = g(i-1,S\backslash\{i\})
+\]
+\end{itemize}
+
+\end{proof}
+\end{claim}
+
+We can solve other problems using this technique
+
+\begin{itemize}
+\item min steiner tree
+\item find all k-colorable induced subgraphs
+\item For more applications, see Husfeldt, ``Invitation to algorithmic uses of inclusion–exclusion'' ~\cite{2011arXiv1105.2942H}
+\end{itemize}
+
+To get the actual $k$-coloring (rather than just deciding whether one exists), there is a reduction given in ~\cite{BjorklundH06} that finds the $k$-coloring in $\Ohstar(2^n)$ time and space.
+
+Computing the M\"obius inversion is left as an exercise.
+
+\section*{Streaming and Sketching}
+\begin{center}
+\textbf{Final topic of class}
+\end{center}
+
+For more in depth exposure take ``Alogrithms for big data''.
+
+\begin{itemize}
+\item[\underline{First}] Streaming (small space data structures).
+\item[\underline{Model}] We have some high dimensional vector $x \in \R^n$ (or high dimensional matrix $X \in R^{n\times n}$). We want to support updates to $x$ and queries about $x$.
+\end{itemize}
+
+\par
+Will look at one kind of update: \underline{turnstile model}~\cite{muthukrishnan2005data}:
+
+\begin{itemize}
+\item Each update (i,v) causes $x_i \leftarrow x_i + v$
+\item x starts off as $\vec{0} \in \R^n$
+\item \underline{example queries}: \begin{itemize}
+    \item What is $x_i$ ?
+    \item What is $|\support(x)|$
+\end{itemize}
+\end{itemize}
+
+There's always the solution of either remembering $x$ or the whole stream (so either $\approx n$ or $m$ space). 
+
+(One) Goal: come up with algorithm that uses much less space than the trivial solution.
+
+\begin{example}
+$\query(x) = |\support(x)| = F_0$
+
+All updates $(i,v)$ have $v=1$. Can use exactly $n$ bits of space (as a bitstring) or $m \log n$ (remembering an index takes $\log n$ space).
+\end{example}
+
+\begin{claim}
+Any deterministic algorithm for $F_0$ requires $\Omega(\min(n,m))$ bits of space ~\cite{Alon}.
+\begin{proof}
+We will prove this via an \textit{encoding argument}.
+Suppose we had a space $S$ streaming algorithm, we will show how to then design a compression mapping $n$-bit string to $S$-bit strings.
+
+Alice receives $\{0,1\}^n$ and wants to compress it using $F_0$ algorithm $A$. Alice creates and artifical stream and uses the memory content of $A$ as compressions.
+
+\underline{Encode(x)}: Create stream containing $\{i | x_i = 1\}$ runs $A$ and outputs memory contents of $A$.
+
+\underline{Decode(x)}: Given memory contents of $A$, we will continue running $A$ and assign the $x_i$ as follows:
+
+\begin{verbatim}
+z = query(A)
+for i = 1:n
+    insert i into stream
+    if query(A) == z
+        x_i = 1
+    else
+        x_i = 0
+    end
+    z = query(Z)
+end
+\end{verbatim}
+\end{proof}
+\end{claim}
+
+So we can't do Deterministic/exact $F_0$. So what about:
+\begin{itemize}
+\item Deterministic/exact: IMPOSSIBLE
+\item Det./approx: IMPOSSIBLE
+\item Rand/exact: IMPOSSIBLE
+\item Rand/approx: POSSIBLE ~\cite{FlajoletM85}
+\end{itemize}
+
+Intuition for why we can beat linear space:
+
+\underline{Goal:} Develop a randomized algorithm $\mathcal{A}$ s.t for all streams $S$, $\P(| A(s) - F_0 |) > \epsilon \cdot F_0) < \frac{1}{3}$.
+
+We will develop an \textbf{idealized} randomized algorithm ~\cite{FlajoletM85}:
+
+Suppose we are given a totally random uniform hash function $h: [n] \to [0,1] \subset \R$. In practice we can get away with a reasonable hash function instead that does not take this much space.
+
+Algorithm:
+
+Let $z = \min_{i \in S} h(i)$. To answer query, output $\frac{1}{z} - 1$.
+
+To improve the algorithm, we can pick $h_1, \ldots, h_R$ independent has functions where $R = \Theta(\frac{1}{\epsilon^2})$.
+Now, let $z_j = \min_{i \in S} h_j(i)$ and output $\frac{1}{\bar{z}} - 1$ where $\bar{z} = \frac{1}{R} \sum_{j=1}^R z_j$.
+
+Let's look at $h$. We're hashing $F_0$ items into $[0,1]$, so we expect them to be roughly evenly spaced with gap $\frac{1}{F_0 + 1}$, with 
+\[
+\E z = \frac{1}{F_0 + 1}
+\]
+or more formally
+\[
+\E z = \int_0^1 \P(z > x) \dif x = \int_0^1 \P(\forall i \in S, h(i) > X) = \int_0^1 (1-x)F_0 \dif x
+\]
+
+\[
+\E z^2 = \frac{2}{(F_0 + 1)(F_0 + 2)}
+\]\[
+\P(| z - \E z | > \epsilon \cdot \E z) - \frac{\Var[z]}{\epsilon^2 \cdot (\E z)^2} \leq \frac{\E z^2}{\epsilon^2 \cdot (\E z)^2}
+\]
+
+\paragraph{Bibliography.}
+
+\bibliographystyle{alpha}
+
+\begin{thebibliography}{{Hus}11}
+
+\bibitem[AMS99]{Alon}
+Noga Alon, Yossi Matias, and Mario Szegedy.
+\newblock The space complexity of approximating the frequency moments.
+\newblock {\em J. Comput. Syst. Sci.}, 58(1):137--147, February 1999.
+
+\bibitem[BH06]{BjorklundH06}
+Andreas Bj{\"{o}}rklund and Thore Husfeldt.
+\newblock Inclusion--exclusion algorithms for counting set partitions.
+\newblock In {\em 47th Annual {IEEE} Symposium on Foundations of Computer
+  Science {(FOCS} 2006), 21-24 October 2006, Berkeley, California, USA,
+  Proceedings}, pages 575--582. {IEEE} Computer Society, 2006.
+
+\bibitem[FM85]{FlajoletM85}
+Philippe Flajolet and G.~Nigel Martin.
+\newblock Probabilistic counting algorithms for data base applications.
+\newblock pages 182--209, 1985.
+
+\bibitem[{Hus}11]{2011arXiv1105.2942H}
+T.~{Husfeldt}.
+\newblock {Invitation to Algorithmic Uses of Inclusion-Exclusion}.
+\newblock {\em ArXiv e-prints}, May 2011.
+
+\bibitem[Koi06]{koivisto20062}
+Mikko Koivisto.
+\newblock An $\ohstar(2^n)$ algorithm for graph coloring and other partitioning
+  problems via inclusion--exclusion.
+\newblock In {\em Foundations of Computer Science, 2006. FOCS'06. 47th Annual
+  IEEE Symposium on}, pages 583--590. IEEE, 2006.
+
+\bibitem[Mut05]{muthukrishnan2005data}
+S~Muthukrishnan.
+\newblock {\em Data streams: Algorithms and applications}.
+\newblock Now Publishers Inc, 2005.
+
+\end{thebibliography}
+
+\end{document}
